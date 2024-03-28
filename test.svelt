@@ -1,0 +1,103 @@
+<script lang="ts">
+  import { url } from '@roxi/routify'
+  import DocumentTitle from '~/components/atoms/DocumentTitle.svelte'
+  import FullPageLoading from '~/components/atoms/FullPageLoading.svelte'
+  import Title from '~/components/atoms/Title.svelte'
+  import ErrorPage from '~/components/organisms/ErrorPage.svelte'
+  import Button from '~/components/shared/Button.svelte'
+  import DataTable, { Column, SortingState } from '~/components/shared/DataTable.svelte'
+  import Icon from '~/components/shared/Icon.svelte'
+  import { TUserGroup, UserGroupRepository } from '~/models/UserGroup'
+  import { clientIdStore } from '~/stores/client'
+  import { convertUtcToJst, formatToYYYYMMDD } from '~/utils/date'
+  import { showError } from '~/models/error'
+
+  const columns: Column[] = [
+    { id: 'title', title: 'ユーザーグループ名', sortable: true, width: '1fr' },
+    { id: 'userCount', title: '対象人数', sortable: true, width: '1fr' },
+    { id: 'createdAt', title: '作成日', sortable: true, width: '1fr' },
+  ]
+
+  type SortDirection = SortingState['direction'];
+
+  function toRow(userGroup: TUserGroup) {
+    const rowCreatedAt = formatToYYYYMMDD(convertUtcToJst(userGroup.createdAt))
+    return {
+      ...userGroup,
+      createdAt: rowCreatedAt,
+    } as const
+  }
+
+  async function fetchUserGroups() {
+    try {
+      const userGroupRepository = new UserGroupRepository({ clientId: $clientIdStore })
+      const userGroups = await userGroupRepository.all()
+      return userGroups
+    } catch (err) {
+      showError(err)
+    }
+  }
+
+  function getSortDirectionParam(params: URLSearchParams): SortDirection {
+    const sortDirection = params.get('sortDirection') || 'none'; 
+
+    if (sortDirection === 'asc' || sortDirection === 'desc' || sortDirection === 'none') {
+      return sortDirection;
+    } else {
+      return 'none';
+    }
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const initialSortColumnId = params.get('sortColumnId') || '';
+  const initialSortDirection = getSortDirectionParam(params)
+  const initialReversed = params.get('reversed') === 'true';
+
+  let sortingState: SortingState = {
+    columnId: initialSortColumnId,
+    direction: initialSortDirection,
+    reversed: initialReversed
+  }
+
+  $: updateUrlParams(sortingState)
+
+  function updateUrlParams(state: SortingState) {
+    const params = new URLSearchParams()
+    params.set('sortColumnId', state.columnId)
+    params.set('sortDirection', state.direction)
+    params.set('reversed', state.reversed.toString())
+    history.pushState({}, '', `${window.location.pathname}?${params.toString()}`)
+  }
+
+  function updateSortState() {
+    updateUrlParams(sortingState)
+  }
+</script>
+
+<DocumentTitle title="ユーザーグループ管理 - サブスクライン" />
+{#await fetchUserGroups()}
+  <FullPageLoading />
+{:then userGroups}
+  {@const rows = userGroups.map(toRow)}
+  <Title>ユーザーグループ管理</Title>
+  <div class="bg-white rounded py-4 px-8">
+    <div class="flex items-center justify-between pt-4">
+      <h1 class="text-2xl font-bold">ユーザーグループ一覧</h1>
+      <Button href="./new">
+        <Icon class="mr-1" src="/images/icons/plus-circle.svg" tint="currentColor" size="1.4em" />
+        新規作成
+      </Button>
+    </div>
+    <DataTable
+      class="mt-8"
+      {columns}
+      {rows}
+      pageSize={10}
+      rowHref={(row) => $url('./:id/edit', { id: row.id })}
+      bind:sortingState
+      on:sortChange={updateSortState}
+    />
+  </div>
+{:catch error}
+  <ErrorPage {error} />
+{/await}
