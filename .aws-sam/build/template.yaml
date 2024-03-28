@@ -10,14 +10,14 @@ Globals:
     Timeout: 10
     MemorySize: 128
 Resources:
-  HelloWorldFunction:
+  BuyBTCFunction:
     Metadata:
       BuildMethod: go1.x
-      SamResourceId: HelloWorldFunction
+      SamResourceId: BuyBTCFunction
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: HelloWorldFunction
-      Handler: hello-world
+      CodeUri: BuyBTCFunction
+      Handler: buy-btc
       Runtime: provided.al2
       Architectures:
       - x86_64
@@ -31,19 +31,19 @@ Resources:
         Variables:
           PARAM1: VALUE
 Outputs:
-  HelloWorldAPI:
+  BuyBTCAPI:
     Description: API Gateway endpoint URL for Prod environment for First Function
     Value:
       Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/
-  HelloWorldFunction:
+  BuyBTCFunction:
     Description: First Lambda Function ARN
     Value:
       Fn::GetAtt:
-      - HelloWorldFunction
+      - BuyBTCFunction
       - Arn
-  HelloWorldFunctionIamRole:
+  BuyBTCFunctionIamRole:
     Description: Implicit IAM Role created for Hello World function
     Value:
       Fn::GetAtt:
-      - HelloWorldFunctionRole
+      - BuyBTCFunctionRole
       - Arn
