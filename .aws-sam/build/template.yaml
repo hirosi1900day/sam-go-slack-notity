@@ -10,14 +10,14 @@ Globals:
     Timeout: 10
     MemorySize: 128
 Resources:
-  BuyBTCFunction:
+  AWSHandler:
     Metadata:
       BuildMethod: go1.x
-      SamResourceId: BuyBTCFunction
+      SamResourceId: AWSHandler
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: BuyBTCFunction
-      Handler: buy-btc
+      CodeUri: AWSHandler
+      Handler: aws
       Runtime: provided.al2
       Architectures:
       - x86_64
@@ -30,26 +30,68 @@ Resources:
       Environment:
         Variables:
           PARAM1: VALUE
-  BuyBTCGroup:
+      EventInvokeConfig:
+        MaximumRetryAttempts: 0
+  AwsGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
-        Fn::Sub: /aws/lambda/${BuyBTCFunction}
+        Fn::Sub: /aws/lambda/${AWSHandler}
       RetentionInDays: 1
+  AWSSqsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: test-aws.fifo
+      FifoQueue: true
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn:
+          Fn::GetAtt:
+          - DeadLetterQueue
+          - Arn
+        maxReceiveCount: 1
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: test-dead-letter-queue.fifo
+      FifoQueue: true
+      VisibilityTimeout: 300
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: id
+        AttributeType: S
+      - AttributeName: group
+        AttributeType: S
+      TableName: test-reviewergroup
+      KeySchema:
+      - AttributeName: id
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+      - IndexName: group-index
+        KeySchema:
+        - AttributeName: group
+          KeyType: HASH
+        Projection:
+          NonKeyAttributes:
+          - user
+          ProjectionType: INCLUDE
 Outputs:
-  BuyBTCAPI:
+  AWSAPI:
     Description: API Gateway endpoint URL for Prod environment for First Function
     Value:
       Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/
-  BuyBTCFunction:
+  AWSHandler:
     Description: First Lambda Function ARN
     Value:
       Fn::GetAtt:
-      - BuyBTCFunction
+      - AWSHandler
       - Arn
-  BuyBTCFunctionIamRole:
+  AWSHandlerIamRole:
     Description: Implicit IAM Role created for Hello World function
     Value:
       Fn::GetAtt:
-      - BuyBTCFunctionRole
+      - AWSHandlerRole
       - Arn

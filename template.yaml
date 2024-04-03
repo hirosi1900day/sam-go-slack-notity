@@ -12,13 +12,13 @@ Globals:
     MemorySize: 128
 
 Resources:
-  BuyBTCFunction:
+  AWSHandler:
     Metadata:
      BuildMethod: go1.x
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: buy-btc/
-      Handler: buy-btc
+      CodeUri: aws/
+      Handler: aws
       Runtime: provided.al2
       Architectures:
         - x86_64
@@ -31,22 +31,76 @@ Resources:
       Environment: # More info about Env Vars: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#environment-object
         Variables:
           PARAM1: VALUE
-  BuyBTCGroup:
+      EventInvokeConfig:
+        # エラー時に再試行しない
+        MaximumRetryAttempts: 0
+  AwsGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub /aws/lambda/${BuyBTCFunction}
+      LogGroupName: !Sub /aws/lambda/${AWSHandler}
       RetentionInDays: 1
+  # aws コマンド実行用の SQS
+  AWSSqsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: test-aws.fifo # fifo 有効化時には .fifo を suffix に指定する
+      FifoQueue: true
+      VisibilityTimeout: 300
+      RedrivePolicy:
+        deadLetterTargetArn:
+          Fn::GetAtt:
+            - DeadLetterQueue
+            - Arn
+        # SQS イベントトリガーで実行される Lambda Function がエラーを返す場合にリトライする最大回数
+        # maxReceiveCount を超えると dead letter queue に移動する
+        # see: https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/aws-properties-sqs-queues.html#aws-sqs-queue-redrive
+        # 早急にエラー検知できる様、 最小値 maxReceiveCount=1 を指定する
+        maxReceiveCount: 1
+
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: test-dead-letter-queue.fifo
+      # FIFO キューを有効化している SQS のデッドレターキューも FIFO を有効化する必要がある
+      FifoQueue: true
+      VisibilityTimeout: 300
+
+  
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: group
+          AttributeType: S
+      TableName: test-reviewergroup
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      # NOTE: GSI はテーブル作成後に追加する必要がある
+      #       テーブル追加時に GlobalSecondaryIndexes の設定はコメントアウトする等、対応が必要です。
+      GlobalSecondaryIndexes:
+        - IndexName: group-index
+          KeySchema:
+            - AttributeName: group
+              KeyType: HASH
+          Projection:
+            NonKeyAttributes:
+              - user
+            ProjectionType: INCLUDE
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  BuyBTCAPI:
+  AWSAPI:
     Description: "API Gateway endpoint URL for Prod environment for First Function"
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
-  BuyBTCFunction:
+  AWSHandler:
     Description: "First Lambda Function ARN"
-    Value: !GetAtt BuyBTCFunction.Arn
-  BuyBTCFunctionIamRole:
+    Value: !GetAtt AWSHandler.Arn
+  AWSHandlerIamRole:
     Description: "Implicit IAM Role created for Hello World function"
-    Value: !GetAtt BuyBTCFunctionRole.Arn
+    Value: !GetAtt AWSHandlerRole.Arn
