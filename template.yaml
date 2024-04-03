@@ -80,7 +80,6 @@ Resources:
       FifoQueue: true
       VisibilityTimeout: 300
 
-  
   DynamoDBTable:
     Type: AWS::DynamoDB::Table
     Properties:
