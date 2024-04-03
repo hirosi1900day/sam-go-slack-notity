@@ -22,7 +22,7 @@ Resources:
       Architectures:
       - x86_64
       Events:
-        CatchAll:
+        ApiEvent:
           Type: Api
           Properties:
             Path: /hello
@@ -30,6 +30,12 @@ Resources:
       Environment:
         Variables:
           PARAM1: VALUE
+  BuyBTCGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${BuyBTCFunction}
+      RetentionInDays: 1
 Outputs:
   BuyBTCAPI:
     Description: API Gateway endpoint URL for Prod environment for First Function
