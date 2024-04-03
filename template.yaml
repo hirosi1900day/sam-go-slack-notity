@@ -12,13 +12,13 @@ Globals:
     MemorySize: 128
 
 Resources:
-  AWSHandler:
+  SLACKHandler:
     Metadata:
      BuildMethod: go1.x
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: aws/
-      Handler: aws
+      CodeUri: slack/
+      Handler: slack
       Runtime: provided.al2
       Architectures:
         - x86_64
@@ -34,11 +34,26 @@ Resources:
       EventInvokeConfig:
         # エラー時に再試行しない
         MaximumRetryAttempts: 0
-  AwsGroup:
-    Type: AWS::Logs::LogGroup
+
+  AWSHandler:
+    Metadata:
+     BuildMethod: go1.x
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      LogGroupName: !Sub /aws/lambda/${AWSHandler}
-      RetentionInDays: 1
+      CodeUri: aws/
+      Handler: aws
+      Runtime: provided.al2
+      Architectures:
+        - x86_64
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt AWSSqsQueue.Arn
+      EventInvokeConfig:
+        # エラー時に再試行しない
+        MaximumRetryAttempts: 0
+
   # aws コマンド実行用の SQS
   AWSSqsQueue:
     Type: AWS::SQS::Queue

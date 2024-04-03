@@ -10,14 +10,14 @@ Globals:
     Timeout: 10
     MemorySize: 128
 Resources:
-  AWSHandler:
+  SLACKHandler:
     Metadata:
       BuildMethod: go1.x
-      SamResourceId: AWSHandler
+      SamResourceId: SLACKHandler
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: AWSHandler
-      Handler: aws
+      CodeUri: SLACKHandler
+      Handler: slack
       Runtime: provided.al2
       Architectures:
       - x86_64
@@ -32,12 +32,27 @@ Resources:
           PARAM1: VALUE
       EventInvokeConfig:
         MaximumRetryAttempts: 0
-  AwsGroup:
-    Type: AWS::Logs::LogGroup
+  AWSHandler:
+    Metadata:
+      BuildMethod: go1.x
+      SamResourceId: AWSHandler
+    Type: AWS::Serverless::Function
     Properties:
-      LogGroupName:
-        Fn::Sub: /aws/lambda/${AWSHandler}
-      RetentionInDays: 1
+      CodeUri: AWSHandler
+      Handler: aws
+      Runtime: provided.al2
+      Architectures:
+      - x86_64
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue:
+              Fn::GetAtt:
+              - AWSSqsQueue
+              - Arn
+      EventInvokeConfig:
+        MaximumRetryAttempts: 0
   AWSSqsQueue:
     Type: AWS::SQS::Queue
     Properties:
