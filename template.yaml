@@ -51,10 +51,13 @@ Resources:
         - x86_64
       Events:
         ApiEvent:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
-            Path: /aws
-            Method: GET
+            Path: /slack
+            Method: ANY
+            PayloadFormatVersion: '2.0'
+            ApiId:
+             Ref: ApiGateway
       EventInvokeConfig:
         # エラー時に再試行しない
         MaximumRetryAttempts: 0
@@ -64,6 +67,26 @@ Resources:
       LogGroupName:
         Fn::Sub: /aws/lambda/${SlackHandler}
       RetentionInDays: 1
+
+  ApiGateway:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: default
+      # NOTE: 全パス・メソッドのログレベル: ERROR を CloudWatch Logs にロギングする
+      #       AWS Config: api-gw-execution-logging-enabled 対応
+      # see: https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/aws-properties-apigateway-deployment-stagedescription-methodsetting.html#cfn-apigateway-deployment-stagedescription-methodsetting-datatraceenabled
+      AccessLogSettings:
+        DestinationArn:
+          Fn::GetAtt:
+            - LogGroupApiGateway
+            - Arn
+        Format: '$context.identity.sourceIp - - [$context.requestTime] "$context.httpMethod $context.routeKey $context.protocol" $context.status $context.responseLength $context.requestId'
+  LogGroupApiGateway:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/api-gateway/${ApiGateway}
+      RetentionInDays: 7
 
   # aws コマンド実行用の SQS
   AwsSqsQueue:
