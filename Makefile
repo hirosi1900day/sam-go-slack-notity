@@ -5,7 +5,7 @@ build:
 .PHONY: build
 
 deploy: 
-	sam deploy -t template.yml \
+	sam deploy \
 		--stack-name ${STACK_NAME} \
 		--s3-prefix ${STACK_NAME} \
 		--s3-bucket sam-s3input-hisosi1900day00000 \
