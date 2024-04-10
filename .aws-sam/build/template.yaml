@@ -1,59 +1,101 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: 'aws-golang
-
-  Sample SAM Template for aws-golang
+Description: 'aws-golang Sample SAM Template for aws-golang
 
   '
+Parameters:
+  BucketName:
+    Type: String
+    Default: sam-s3input-hisosi1900day00000
 Globals:
   Function:
     Timeout: 10
     MemorySize: 128
 Resources:
-  SLACKHandler:
+  S3UploadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Ref: BucketName
+  AwsHandler:
     Metadata:
       BuildMethod: go1.x
-      SamResourceId: SLACKHandler
+      SamResourceId: AwsHandler
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: SLACKHandler
-      Handler: slack
-      Runtime: provided.al2
-      Architectures:
-      - x86_64
-      Events:
-        ApiEvent:
-          Type: Api
-          Properties:
-            Path: /hello
-            Method: GET
-      Environment:
-        Variables:
-          PARAM1: VALUE
-      EventInvokeConfig:
-        MaximumRetryAttempts: 0
-  AWSHandler:
-    Metadata:
-      BuildMethod: go1.x
-      SamResourceId: AWSHandler
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: AWSHandler
+      FunctionName: aws-handler
+      CodeUri: AwsHandler
       Handler: aws
       Runtime: provided.al2
+      Role: arn:aws:iam::572919087216:role/slack_role
       Architectures:
-      - x86_64
+      - arm64
       Events:
         SQSEvent:
           Type: SQS
           Properties:
             Queue:
               Fn::GetAtt:
-              - AWSSqsQueue
+              - AwsSqsQueue
               - Arn
       EventInvokeConfig:
         MaximumRetryAttempts: 0
-  AWSSqsQueue:
+  LowsHandler:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${AwsHandler}
+      RetentionInDays: 1
+  SlackHandler:
+    Metadata:
+      BuildMethod: go1.x
+      SamResourceId: SlackHandler
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: slack-handler
+      CodeUri: SlackHandler
+      Handler: slack
+      Runtime: provided.al2
+      Role: arn:aws:iam::572919087216:role/slack_role
+      Architectures:
+      - arm64
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            Path: /slack
+            Method: ANY
+            PayloadFormatVersion: '2.0'
+            ApiId:
+              Ref: ApiGateway
+      EventInvokeConfig:
+        MaximumRetryAttempts: 0
+  LogSlackHandler:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${SlackHandler}
+      RetentionInDays: 1
+  ApiGateway:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Name: slack-apigateway
+      StageName: default
+      AccessLogSettings:
+        DestinationArn:
+          Fn::GetAtt:
+          - LogGroupApiGateway
+          - Arn
+        Format: $context.identity.sourceIp - - [$context.requestTime] "$context.httpMethod
+          $context.routeKey $context.protocol" $context.status $context.responseLength
+          $context.requestId
+  LogGroupApiGateway:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/api-gateway/${ApiGateway}
+      RetentionInDays: 7
+  AwsSqsQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: test-aws.fifo
@@ -93,20 +135,3 @@ Resources:
           NonKeyAttributes:
           - user
           ProjectionType: INCLUDE
-Outputs:
-  AWSAPI:
-    Description: API Gateway endpoint URL for Prod environment for First Function
-    Value:
-      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/
-  AWSHandler:
-    Description: First Lambda Function ARN
-    Value:
-      Fn::GetAtt:
-      - AWSHandler
-      - Arn
-  AWSHandlerIamRole:
-    Description: Implicit IAM Role created for Hello World function
-    Value:
-      Fn::GetAtt:
-      - AWSHandlerRole
-      - Arn

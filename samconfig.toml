@@ -23,6 +23,7 @@ region = "ap-northeast-1"
 profile = "private"
 disable_rollback = true
 image_repositories = []
+parameter_overrides = "BucketName=\"sam-s3input-hisosi1900day00000\""
 
 [default.package.parameters]
 resolve_s3 = false

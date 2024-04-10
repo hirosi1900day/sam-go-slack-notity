@@ -4,6 +4,11 @@ Description: >
   aws-golang
   Sample SAM Template for aws-golang
 
+Parameters:
+  BucketName:
+    Type: String
+    Default: "sam-s3input-hisosi1900day00000"
+
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
@@ -11,6 +16,11 @@ Globals:
     MemorySize: 128
 
 Resources:
+  S3UploadBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+
   AwsHandler:
     Metadata:
      BuildMethod: go1.x
@@ -22,7 +32,7 @@ Resources:
       Runtime: provided.al2
       Role: arn:aws:iam::572919087216:role/slack_role
       Architectures:
-        - x86_64
+        - arm64
       Events:
         SQSEvent:
           Type: SQS
@@ -47,8 +57,9 @@ Resources:
       CodeUri: slack/
       Handler: slack
       Runtime: provided.al2
+      Role: arn:aws:iam::572919087216:role/slack_role
       Architectures:
-        - x86_64
+        - arm64
       Events:
         ApiEvent:
           Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -71,6 +82,7 @@ Resources:
   ApiGateway:
     Type: AWS::Serverless::HttpApi
     Properties:
+      Name: slack-apigateway
       StageName: default
       # NOTE: 全パス・メソッドのログレベル: ERROR を CloudWatch Logs にロギングする
       #       AWS Config: api-gw-execution-logging-enabled 対応
