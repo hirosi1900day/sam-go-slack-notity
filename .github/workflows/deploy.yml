@@ -1,0 +1,40 @@
+name: deploy
+
+on:
+  pull_request:
+    branches: [master]
+    types: [closed]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick golang_info
+        id: go
+        run: |
+            echo "version=$(grep golang .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.go.outputs.version }}
+
+      - uses: aws-actions/setup-sam@v2
+
+      - name: Configure aws credentials for prod
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.PROD_AWS_ASSUME_ROLE_ARN }}
+          role-duration-seconds: 1800
+
+      - run: make build
+      - run: make deploy
