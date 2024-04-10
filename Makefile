@@ -7,6 +7,8 @@ build:
 deploy: 
 	sam deploy \
 		--stack-name ${STACK_NAME} \
+		--s3-prefix ${STACK_NAME} \
+		--s3-bucket sam-s3input-hisosi1900day00000 \
 		--capabilities CAPABILITY_IAM \
 		--region ap-northeast-1 \
 		--no-confirm-changeset \
