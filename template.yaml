@@ -16,14 +16,75 @@ Globals:
     MemorySize: 128
 
 Resources:
+  S3FileTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !GetAtt [ForDynamoDbLambdaQueue, Arn]
+          Protocol: sqs
+        - Endpoint: !GetAtt [ForSlackNotifyLambdaQueue, Arn]
+          Protocol: sqs
+      TopicName: s3-file-topic
+  S3EventTopicPolicy:
+    Type: "AWS::SNS::TopicPolicy"
+    Properties:
+      Topics:
+        - !Ref S3FileTopic
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: TopicPolicy
+            Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action:
+              - "sns:Publish"
+            Resource: !Ref S3FileTopic
+      
+  ForDynamoDbLambdaQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 20
+      MessageRetentionPeriod: 60
+
+  ForSlackNotifyLambdaQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 20
+      MessageRetentionPeriod: 60
+
+  AwsQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref ForSlackNotifyLambdaQueue
+        - !Ref ForDynamoDbLambdaQueue
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: "sqs:*"
+            Resource: 
+              - !GetAtt [ForSlackNotifyLambdaQueue, Arn]
+              - !GetAtt [ForDynamoDbLambdaQueue, Arn]
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref S3FileTopic
+
   S3UploadBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Ref BucketName
+      NotificationConfiguration:
+        TopicConfigurations:
+        - Topic: !Ref S3FileTopic
+          Event: s3:ObjectCreated:*
+    DependsOn: S3FileTopic
 
   AwsHandler:
     Metadata:
-     BuildMethod: go1.x
+      BuildMethod: go1.x
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
       FunctionName: aws-handler
@@ -46,6 +107,63 @@ Resources:
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${AwsHandler}
+      RetentionInDays: 1
+  DynamoDbLambda:
+    Metadata:
+      BuildMethod: go1.x
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: dynamodb/
+      Handler: dynamodb
+      Runtime: provided.al2
+      Role: arn:aws:iam::572919087216:role/slack_role
+      Timeout: 10
+      Tracing: Active
+      Architectures:
+        - arm64
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ForDynamoDbLambdaQueue.Arn
+            BatchSize: 10
+      EventInvokeConfig:
+        # エラー時に再試行しない
+        MaximumRetryAttempts: 0
+  DynamoDbLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: 
+        Fn::Sub: /aws/lambda/${DynamoDbLambda}
+      RetentionInDays: 1
+
+  SlackNotifyLambda:
+    Metadata:
+      BuildMethod: go1.x
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: slack_notify/
+      Handler: slack_notify
+      Runtime: provided.al2
+      Role: arn:aws:iam::572919087216:role/slack_role
+      Timeout: 10
+      Tracing: Active
+      Architectures:
+        - arm64
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ForSlackNotifyLambdaQueue.Arn
+            BatchSize: 10
+      EventInvokeConfig:
+        # エラー時に再試行しない
+        MaximumRetryAttempts: 0
+  SlackNotifyLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: 
+        Fn::Sub: /aws/lambda/${SlackNotifyLambda}
       RetentionInDays: 1
 
   SlackHandler:
