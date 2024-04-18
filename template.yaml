@@ -65,7 +65,9 @@ Resources:
           - Effect: Allow
             Principal: "*"
             Action: "sqs:*"
-            Resource: !GetAtt [AwsSqsQueue, Arn]
+            Resource: 
+              - !GetAtt [ForSlackNotifyLambdaQueue, Arn]
+              - !GetAtt [ForDynamoDbLambdaQueue, Arn]
             Condition:
               ArnEquals:
                 aws:SourceArn: !Ref S3FileTopic
